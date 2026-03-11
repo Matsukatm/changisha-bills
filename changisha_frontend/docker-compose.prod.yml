@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+    restart: unless-stopped
+
+  # Frontend build service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    volumes:
+      - ./dist:/app/dist
+    environment:
+      - NODE_ENV=production
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-https://api.changishabills.com}
+    restart: unless-stopped
+
+  # SSL certificate management (optional)
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - ./certbot-config:/etc/letsencrypt/config
+    command: certonly --webroot --webroot-path=/etc/letsencrypt --email admin@changishabills.com --agree-tos --no-eff-email -d changishabills.com -d www.changishabills.com
+    profiles:
+      - ssl
+
+networks:
+  default:
+    name: changishabills-frontend
